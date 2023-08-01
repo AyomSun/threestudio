@@ -36,7 +36,7 @@ system:
 
   renderer_type: "nvdiff-rasterizer"
   renderer:
-    context_type: gl
+    context_type: cuda
 
   prompt_processor_type: "stable-diffusion-prompt-processor"
   prompt_processor:
@@ -70,7 +70,7 @@ system:
       eps: 1.e-15
 
 trainer:
-  max_steps: 15000
+  max_steps: 6000
   log_every_n_steps: 1
   num_sanity_val_steps: 1
   val_check_interval: 200
