@@ -78,7 +78,7 @@ class StableDiffusionPromptProcessor(PromptProcessor):
         text_encoder = CLIPTextModel.from_pretrained(
             pretrained_model_name_or_path,
             subfolder="text_encoder",
-            device_map="auto",
+            device_map="cuda:0",
         )
 
         with torch.no_grad():
@@ -88,7 +88,7 @@ class StableDiffusionPromptProcessor(PromptProcessor):
                 max_length=tokenizer.model_max_length,
                 return_tensors="pt",
             )
-            text_embeddings = text_encoder(tokens.input_ids.to(text_encoder.device))[0]
+            text_embeddings = text_encoder(tokens.input_ids.to("cuda"))[0]
 
         for prompt, embedding in zip(prompts, text_embeddings):
             torch.save(

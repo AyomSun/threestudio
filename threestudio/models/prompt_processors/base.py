@@ -8,12 +8,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from transformers import AutoTokenizer, BertForMaskedLM
+from transformers import T5EncoderModel, T5Tokenizer
 
 import threestudio
 from threestudio.utils.base import BaseObject
 from threestudio.utils.misc import barrier, cleanup, get_rank
 from threestudio.utils.ops import shifted_cosine_decay, shifted_expotional_decay
 from threestudio.utils.typing import *
+
 
 
 def hash_prompt(model: str, prompt: str) -> str:
@@ -187,7 +189,7 @@ class PromptProcessor(BaseObject):
         back_threshold: float = 45.0
         view_dependent_prompt_front: bool = False
         use_cache: bool = True
-        spawn: bool = True
+        spawn: bool = False
 
         # perp neg
         use_perp_neg: bool = False
@@ -337,7 +339,35 @@ class PromptProcessor(BaseObject):
 
     @staticmethod
     def spawn_func(pretrained_model_name_or_path, prompts, cache_dir):
-        raise NotImplementedError
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_model_name_or_path, subfolder="tokenizer"
+        )
+        text_encoder = CLIPTextModel.from_pretrained(
+            pretrained_model_name_or_path,
+            subfolder="text_encoder",
+            device_map="cuda:0",
+        )
+
+        with torch.no_grad():
+            tokens = tokenizer(
+                prompts,
+                padding="max_length",
+                max_length=tokenizer.model_max_length,
+                return_tensors="pt",
+            )
+            text_embeddings = text_encoder(tokens.input_ids)[0]
+
+        for prompt, embedding in zip(prompts, text_embeddings):
+            torch.save(
+                embedding,
+                os.path.join(
+                    cache_dir,
+                    f"{hash_prompt(pretrained_model_name_or_path, prompt)}.pt",
+                ),
+            )
+
+        del text_encoder
 
     @rank_zero_only
     def prepare_text_embeddings(self):
